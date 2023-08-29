@@ -18,7 +18,7 @@ using System.Collections.Generic;
  * t    "tail"      takes a list and returns a new list containing 
  *                  all but the first item, or nil if given nil.
  * 
- * e    "equal"     takes two values of the same type and returns 1
+ * e    "equals"    takes two values of the same type and returns 1
  *                  if they are equal and 0 otherwise.
  * 
  * v    "eval"      takes one value and evaluates it. 
@@ -42,11 +42,11 @@ class TinyLisp {
 
     record Cons(object car, object cdr);
 
-    public object env, nil, tru;
+    static object env, nil;
 
-    public TinyLisp() {
-        tru = "tru";
+    static void init() {
         nil = null;
+
         env = (new object [] { 
             nil,
             cons("c", (object x) => cons(car(x), car(cdr(x)))), 
@@ -54,16 +54,16 @@ class TinyLisp {
             cons("t", (object x) => cdr(car(x))),
             cons("e", (object x) => car(x) == car(cdr(x))),
             cons("nil", nil),
-            cons("tru", tru)
         }).Aggregate((x, y) => cons(y, x));
+
     }
 
-    object cons(object car, object cdr) => new Cons(car, cdr);
+    static object cons(object car, object cdr) => new Cons(car, cdr);
 
-    object car(object x) => ((Cons)x).car;
-    object cdr(object x) => ((Cons)x).cdr;
+    static object car(object x) => ((Cons)x).car;
+    static object cdr(object x) => ((Cons)x).cdr;
 
-    object evlis(object x, object e) {
+    static object evlis(object x, object e) {
         return x switch {
             null => nil,
             Cons (var car, var cdr) => cons(eval(car, e), evlis(cdr, e)),
@@ -71,7 +71,7 @@ class TinyLisp {
         };
     }
 
-    object eval(object x, object e) {
+    static object eval(object x, object e) {
         while (true) {
 
             if (x is string) {
@@ -91,7 +91,7 @@ class TinyLisp {
 
                 switch (f) {
                     case string s: switch (s) {
-                        case "i": return eval(eval(car(a), e) != null ? car(cdr(a)) : cdr(cdr(a)), e);
+                        case "i": return eval(eval(car(a), e) != nil ? car(cdr(a)) : car(cdr(cdr(a))), e);
                         case "v": eval(car(a), e); continue;
                         case "q": return a;
                         case "d": env = cons(cons(car(a), eval(cdr(a), e)), env); return car(a);
@@ -123,7 +123,7 @@ class TinyLisp {
         }
     }
 
-    object print(object x, bool head_of_list = true) {
+    static object print(object x, bool head_of_list = true) {
         switch (x) {
             case null: Console.Write("nil"); break;
             case Cons (var car, var cdr): {
@@ -135,6 +135,9 @@ class TinyLisp {
                 if (cdr != null) {
                     Console.Write(" ");
                     print(cdr, false);
+
+                    if (!(cdr is Cons))
+                        Console.Write(")");
                 } else {
                     Console.Write(")");
                 }
@@ -147,7 +150,6 @@ class TinyLisp {
     }
 
     public static void Main() {
-        var rt = new TinyLisp();
 
         // Console.WriteLine(rt.env);
 
@@ -155,14 +157,118 @@ class TinyLisp {
 
         // Console.WriteLine(tmp);
 
-        var tmp = rt.cons("q", rt.cons(1, rt.cons(2, rt.cons(3, rt.nil))));
+        // var tmp = rt.cons("q", rt.cons(1, rt.cons(2, rt.cons(3, rt.nil))));
 
-        var res = rt.eval(rt.cons("t", rt.cons(tmp, rt.nil)), rt.env);
+        // var res = rt.eval(rt.cons("t", rt.cons(tmp, rt.nil)), rt.env);
 
-        rt.print(res);
+        // rt.print(res);
+
+        init();
+
+        object cond_expr = cons("q", "tru"); // "nil"; // "tru";
+        object then_expr = cons("q", "then...");
+        object else_expr = cons("q", "else...");
+
+        object expr = cons("i", cons(cond_expr, cons(then_expr, cons(else_expr, nil))));
+
+
+        print(eval(expr, env));
 
         Console.WriteLine();
 
+        Console.WriteLine("running tests...");
+
+        Test();
+
+        Console.WriteLine("tests completed.");
+
+    }
+
+    // ...eat your vegetables...
+    public static void Test() {
+
+        object x, r; 
+
+        x = "nil";
+        r = nil;
+
+        assert(x, r);
+
+        x = "lululu";
+        r = "lululu";
+
+        assert(x, r);
+
+        x = cons("q", "nil");
+        r = "nil";
+
+        assert(x, r);
+
+        x = cons("q", "lululu");
+        r = "lululu";
+
+        assert(x, r);
+
+        x = cons("q", cons("lulu", "lolo"));
+        r = cons("lulu", "lolo");
+
+        assert(x, r);
+
+        x = cons("q", cons("quop", nil));
+        r = cons("quop", nil);
+
+        assert(x, r);
+
+        x = cons("i", cons("tru", cons(cons("q", "then..."), cons(cons("q", "else..."), nil))));
+        r = "then...";
+
+        assert(x, r);
+
+        x = cons("i", cons("nil", cons(cons("q", "then..."), cons(cons("q", "else..."), nil))));
+        r = "else...";
+
+        assert(x, r);
+
+        x = cons("i", cons(cons("q", "tru"), cons(cons("q", "then..."), cons(cons("q", "else..."), nil))));
+        r = "then...";
+
+        assert(x, r);
+
+
+
+    }
+
+    static bool cmp(object a, object b) {
+        return (a, b) switch {
+            (null, null) => true,
+            (null, _) => false,
+            (_, null) => false,
+
+            (string sa, string sb) => sa == sb,
+            (Cons _, Cons _) => cmp(car(a), car(b)) && cmp(cdr(a), cdr(b)),
+
+            (_, _) => false, // I don't properly support anything else (I think)
+        };
+    }
+
+    static void assert(object x, object r) {
+        init();
+
+        object q = eval(x, env);
+
+        if (cmp(q, r)) return;
+
+        Console.WriteLine("test failed!");
+        Console.Write("expression: ");
+        print(x);
+
+        Console.Write("\nevaluation: ");
+        print(q);
+
+        Console.Write("\nexpectation: ");
+        print(r);
+
+        Console.WriteLine("\n");
     }
 
 }
