@@ -48,3 +48,16 @@ how lisp works internally and even more about C# and its very unhelpful type sys
 
 I spent another day golfing & debugging the third version of the runtime.
 
+### The Compiler (30 days until deadline)
+
+Okay, now I got a runtime which consumes lisp in bytecode form 
+but I need a compiler to produce that bytecode 
+unless I want to write the bot in my own lisp flavored assembly language.
+
+So I spent another day writing a hacky compiler which parses s-expressions
+and converts them into s-expressions but compressed into bytes.
+
+At this stage I also learned about decimal packing from skimming thru discord.
+The compiler reads a string of lisp code and prints an array of decimals.
+
+###
