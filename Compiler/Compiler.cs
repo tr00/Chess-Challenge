@@ -261,12 +261,13 @@ class Compiler {
         var prog1 = "(define _start (quote ((board timer) (car (gen-moves board)))))";
         var prog2 = @"
         (
-            (define map (quote (f xs)
+            (define map (quote ((f xs)
                 (if (nilq xs) () 
-                    (cons (f (car xs)) (map f (cdr xs))))))
-        eval (quote 
-            (define _start (quote car (moves board)))
-        ))
+                    (cons (f (car xs)) (map f (cdr xs)))))))
+
+        eval (quote (
+            (define _start (quote ((board timer) (car (gen-moves board)))))
+        )))
         ";
 
         // make a big list with all expressions
@@ -275,7 +276,7 @@ class Compiler {
 
         // (eval ((define map (quote (f xs) (...))) eval (quote x0 x1 x2 x3 ...)))
 
-        var ast = compiler.Parse(prog1);
+        var ast = compiler.Parse(prog2);
         compiler.Compile(ast);
     }
 // eval (def x ...) => x

@@ -56,8 +56,12 @@ public class MyBot : IChessBot
 
         foreach (var token in (new decimal[] {
 
-311988177724260908408439041m,
-37038168493347832075m,
+642024631332551435634147585m,
+5571986344859797580280825857m,
+641996298361729476644244225m,
+2167608827689444598719054338m,
+4953021047589239525709578751m,
+37038168493095256596m,
 
         }).SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes))
             switch (token) {
@@ -125,8 +129,9 @@ public class MyBot : IChessBot
                     return car(args);
 
                 case 0x07: // define
-                    env[car(args)] = eval(car(cdr(args)), env);
-                    return car(args);
+                    var tmp = eval(car(cdr(args)), env);
+                    env[car(args)] = tmp;
+                    return tmp;
 
                 case 0x08: // if
                     x = (bool)eval(car(args), e) ? car(cdr(args)) : car(cdr(cdr(args)));
