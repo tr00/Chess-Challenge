@@ -1,5 +1,6 @@
-﻿#define DEBUG_CTOR
-#define DEBUG_EVAL
+﻿
+// #define VEGETABLES
+// #define DEBUGINFO
 
 using ChessChallenge.API;
 
@@ -32,63 +33,51 @@ using D = System.Collections.Generic.Dictionary<object, object>;
 public class MyBot : IChessBot
 {
     D env;
-    object bot;
 
     public MyBot() {
+
+        /* core library */
+        env = new() {
+            { 0x0a, (object x) => cons(car(x), car(cdr(x))) },
+            { 0x0b, (object x) => car(car(x)) },
+            { 0x0c, (object x) => cdr(car(x)) },
+            { 0x0d, (object x) => (object)nilq(car(x)) },
+            // TODO: eq
+
+            { 0x10, (object x) => (object)((Board)car(x)).GetLegalMoves().Cast<object>() },
+        };
+
+
+#if VEGETABLES
+        vegetables(); // #DEBUG
+#endif
+
         Stack<List<object>> stack = new();
 
         foreach (var token in (new decimal[] {
 
-            /* bytecode */
-            37040431283831046401m,
+311988177724260908408439041m,
+37038168493347832075m,
 
-            /* decoder */
         }).SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes))
-
-            /* parser */
             switch (token) {
-                case 0x00: /* pad */
-                    continue;
-                case 0xff: /* nil */
-                    stack.Peek().Add(null); 
-                    break;
-                case 0x01: /* lpa */
+                case 0x00: continue;
+                case 0x01: // lpa
                     stack.Push(new()); 
                     break;
-                case 0x02: /* rpa */
+                case 0x02: // rpa
                     var top = stack.Pop();
                     stack.Peek().Add(top);
                     break;
                 default:
-#if DEBUG_CTOR
-                    debug("[ctor]> decoded symbol: ", (int)token); // #DEBUG
-#endif
-    
                     stack.Peek().Add((int)token);
                     break;
             }
 
-        /* core library */
-        env = new() {
-            { 0x08, (object x) => car(car(x)) },
-            { 0x0c, (F)((object x) => ((Board)car(x)).GetLegalMoves().Cast<object>()) },
-        };
-
-        var ast = stack.Peek()[0];
-
-#if DEBUG_CTOR
-        debug("[ctor]> decoded ast: ", ast); // #DEBUG
-#endif
-
-        /* initialization */
-        bot = eval(ast, env);
-
-#if DEBUG_CTOR
-        Console.WriteLine("[ctor]> initialization completed...\n");
-#endif
+        eval(stack.Peek()[0], env);
     }
 
-    object cons(object car, object cdr) => cdr switch {
+    object cons(object car, object cdr) => car switch {
         L l => l.Prepend(car),
         _ => new object[] { car, cdr },
     };
@@ -102,46 +91,65 @@ public class MyBot : IChessBot
         _ => false,
     };
 
-    object eval(object x, D e) {
-        TCO: // tail call optimization
+// ------------------------------------------------------------
+// ------------------------------------------------------------
+// ------------------------------------------------------------
+// ------------------------------------------------------------
 
-#if DEBUG_EVAL
-        debug("[eval]> starting evaluation of: ", x); // #DEBUG
+    object eval(object x, D e) {
+        TCO:
+
+#if DEBUGINFO
+        Console.Write("eval: ");    // #DEBUG
+        print(x);                   // #DEBUG
+        Console.WriteLine();        // #DEBUG
 #endif
 
         if (x is not L)
-        { // #DEBUG
-#if DEBUG_EVAL
-            Console.WriteLine("[eval]> env[{0}] = {1}", x, e.ContainsKey(x) ? "found." : "missing!"); // #DEBUG
-#endif
-
             return e.ContainsKey(x) ? e[x] : x;
-        } // #DEBUG
 
         if (nilq(x))
             return x;
+
 
         var func = eval(car(x), e);
         var args = cdr(x);
 
         if (func is int)
             switch ((int)func) {
-                case 0x03: x = args; goto TCO;
-                case 0x04: return args;
-                case 0x05: env[car(args)] = eval(car(cdr(args)), env); return car(args);
-                case 0x06: return eval(nilq(eval(car(args), e)) ? car(cdr(args)) : car(cdr(cdr(args))), e);
+                case 0x05: // eval
+                    x = eval(car(args), e);
+                    goto TCO;
+
+                case 0x06: // quote
+                    return car(args);
+
+                case 0x07: // define
+                    env[car(args)] = eval(car(cdr(args)), env);
+                    return car(args);
+
+                case 0x08: // if
+                    x = (bool)eval(car(args), e) ? car(cdr(args)) : car(cdr(cdr(args)));
+                    goto TCO;
+#if DEBUGINFO
+                default: throw new ArgumentException($"unrecognized symbol: {func}"); // #DEBUG
+#endif
             }
 
-        var iter = ((L)args).Select(arg => eval(arg, e));
+
+        // TODO: the tolist is optional
+        var iter = ((L)args).Select(arg => eval(arg, e)).ToList();
 
         if (func is F) 
-        { // #DEBUG
             return ((F)func)(iter);
-        } // #DEBUG
 
         e = new(e);
 
-        debug("calling: ", func); // #DEBUG
+#if DEBUGINFO
+        Console.Write("lambda: ");      // #DEBUG
+        print(func);                    // #DEBUG
+        Console.WriteLine();            // #DEBUG
+#endif
 
         foreach ((var k, var v) in ((L)car(func)).Zip(iter))
             e[k] = v;
@@ -152,28 +160,21 @@ public class MyBot : IChessBot
     }
 
     public Move Think(Board board, Timer timer) {
-        debug("thinking... ", bot); // #DEBUG
+        Console.WriteLine("thinking..."); // #DEBUG
 
-        env[0x0a] = board;
-        env[0x0b] = timer;
-
-        return (Move)eval(bot, env);
+        return (Move)eval(new object[] { 0xff, board, timer }, env);
     }
 
     // debugging:
-
-void debug(string prefix, object expr) { Console.Write(prefix); print(expr); Console.WriteLine(); } // #DEBUG
 
     void print(object x) {                                  // #DEBUG 
         switch (x) {                                        // #DEBUG
             case null: Console.WriteLine("nil"); break;     // #DEBUG
             case L a: {                                     // #DEBUG
                 Console.Write("(");                         // #DEBUG
-                if (!nilq(a))
+                if (!nilq(a))                               // #DEBUG
                     print(car(a));                          // #DEBUG
-
                 a = (L)cdr(a);                              // #DEBUG
-                
                 while (!nilq(a)) {                          // #DEBUG
                     Console.Write(" ");                     // #DEBUG
                     print(car(a));                          // #DEBUG
@@ -181,9 +182,101 @@ void debug(string prefix, object expr) { Console.Write(prefix); print(expr); Con
                 }                                           // #DEBUG
                 Console.Write(")"); break;                  // #DEBUG
                 }                                           // #DEBUG
-            case byte: Console.Write("0x{0:x2}", x); break; // #DEBUG
+            case int:                                       // #DEBUG
+                Console.Write("0x{0:x2}", x); break;        // #DEBUG
             default: Console.Write(x); break;               // #DEBUG
         }                                                   // #DEBUG
     }                                                       // #DEBUG
+
+#if VEGETABLES
+
+/*
+
+    void vegetables()
+    {
+        test_builtins();
+
+        Console.WriteLine("passed all tests!");
+    }
+
+    void test_builtins() {
+        object res, tmp;
+
+        // identity
+        res = eval(0x42, new D());
+        assume(res, 0x42);
+
+        // nil handling
+        res = eval(new object[] {}, new D());
+        assume(nilq(res), true);
+
+        // lookup
+        res = eval(0xab, new D {{0xab, 0xcd}});
+        assume(res, 0xcd);
+
+        // quote 1
+        res = eval(cons(0x06, 0x55), new D());
+        assume(res, 0x55);
+
+        // quote 2
+        tmp = new object[] { 0xab };
+        res = eval(cons(0x06, tmp), new D());
+        assume(res, tmp);
+
+        // quote 3
+        tmp = new object[] { 0xfe, 0xdc };
+        res = eval(cons(0x06, tmp), new D());
+        assume(res, tmp);
+
+        // if 1
+        res = eval(new object[] { 0x08, true, 0xab, 0xcd }, new D());
+        assume(res, 0xab);
+        res = eval(new object[] { 0x08, false, 0xab, 0xcd }, new D());
+        assume(res, 0xcd);
+
+        // if 2
+        res = eval(new object[] { 0x08, true, cons(0x06, 0xab), 0xcd }, new D());
+        assume(res, 0xab);
+        res = eval(new object[] { 0x08, false, 0xab, cons(0x06, 0xcd) }, new D());
+        assume(res, 0xcd);
+
+        // if 3
+        res = eval(new object[] { 0x08, cons(0x06, true), 0xab, 0xcd }, new D());
+        assume(res, 0xab);
+        res = eval(new object[] { 0x08, cons(0x06, false), 0xab, 0xcd }, new D());
+        assume(res, 0xcd);
+
+        // define 1
+        eval(new object[] {0x07, 0xfe, 0x33}, new D());
+        res = eval(0xfe, new D(env));
+        assume(res, 0x33);
+
+        // define 2
+        eval(new object[] {0x07, 0xfe, cons(0x06, 0x33)}, new D());
+        res = eval(0xfe, new D(env));
+        assume(res, 0x33);
+
+        // eval 1
+        res = eval(cons(0x05, cons(0x06, 0xab)), new D{{0xab, 0xcd}}); // (v (q 0xab))[ab:=cd]
+        assume(res, 0xcd);
+
+
+    }
+
+    bool deep_eq(object a, object b) => (a, b) switch {
+            (int ia, int ib) => ia == ib,
+            (bool ba, bool bb) => ba == bb,
+            (L la, L lb) => la.Zip(lb).All(ab => deep_eq(ab.First, ab.Second)),
+            (_, _) => false,
+        };
+
+    void assume(object a, object b) {
+        if (!deep_eq(a, b))
+            throw new ArgumentException("test failed!");
+    }
+
+*/
+
+#endif
 
 }

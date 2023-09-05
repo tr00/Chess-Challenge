@@ -9,23 +9,39 @@ class Compiler {
     /**
      * quick bytecode explanation:
      *
-     *      nil := 0xff
-     *      pad := 0x00 // these tokens are ignored when parsed
-     *      '(' := 0x01
-     *      ')' := 0x02
-     *     eval := 0x03
-     *    quote := 0x04
-     *   define := 0x05 // binds in global scope (env)
-     *       if := 0x06
-     *     cons := 0x07
-     *      car := 0x08
-     *      cdr := 0x09
-     *    board := 0x0a
-     *    timer := 0x0b
-     *    moves := 0x0c
+     * immaterial tokens:
+     *
+     *  [0x00] = padding
+     *  [0x01] = lpa
+     *  [0x02] = rpa
+     *  [0x03] = <reserved>
+     *  [0x04] = <reserved>
+     *
+     * special forms:
+     *
+     *  [0x05] = eval
+     *  [0x06] = quote
+     *  [0x07] = define
+     *  [0x08] = if
+     *  [0x09] = <reserved>
+     *
+     * core library:
+     *
+     *  [0x0a] = cons
+     *  [0x0b] = car
+     *  [0x0c] = cdr
+     *  [0x0d] = nilq
+     *  [0x0e] = eq
+     *  [0x0f] = <reserved>
+     *
+     * chess api:
+     *
+     *  [0x10] = gen-moves
      *
      * the rest are symbol names
      */
+
+    const byte isa_offset = 0x12;
 
     const byte nil_byte = 0xff;
     const byte pad_byte = 0x00;
@@ -61,16 +77,26 @@ class Compiler {
         digit = new Regex(@"\G\d+");
 
         symbols = new Dictionary<string, byte> {
-            { "eval",   0x03 },
-            { "quote",  0x04 },
-            { "define", 0x05 },
-            { "if",     0x06 },
-            { "cons",   0x07 },
-            { "car",    0x08 },
-            { "cdr",    0x09 },
-            { "board",  0x0a },
-            { "timer",  0x0b },
-            { "moves",  0x0c },
+            // entry point
+            { "_start", 0xff },
+
+            // special forms
+            { "eval",   0x05 },
+            { "quote",  0x06 },
+            { "define", 0x07 },
+            { "if",     0x08 },
+            { "<r0>",   0x09 },
+
+            // core library
+            { "cons",   0x0a },
+            { "car",    0x0b },
+            { "cdr",    0x0c },
+            { "nilq",   0x0d },
+            { "eq",     0x0e },
+            { "<r1>",   0x0f },
+
+            // chess api
+            { "gen-moves",  0x10 },
         };
 
         nil = new Nil();
@@ -147,7 +173,7 @@ class Compiler {
                     }
 
                     if (!symbols.ContainsKey(x.s))
-                        symbols[x.s] = (byte)(symbols.Count + 3);
+                        symbols[x.s] = (byte)(symbols.Count + 4);
 
                     byte id = symbols[x.s];
 
@@ -231,9 +257,28 @@ class Compiler {
     static void Main() {
         var compiler = new Compiler();
 
-        var ast = compiler.Parse("(quote (car (moves board)))");
+        var prog0 = "()";
+        var prog1 = "(define _start (quote ((board timer) (car (gen-moves board)))))";
+        var prog2 = @"
+        (
+            (define map (quote (f xs)
+                (if (nilq xs) () 
+                    (cons (f (car xs)) (map f (cdr xs))))))
+        eval (quote 
+            (define _start (quote car (moves board)))
+        ))
+        ";
+
+        // make a big list with all expressions
+        // and then call (map eval ...) over that list
+
+
+        // (eval ((define map (quote (f xs) (...))) eval (quote x0 x1 x2 x3 ...)))
+
+        var ast = compiler.Parse(prog1);
         compiler.Compile(ast);
     }
-
+// eval (def x ...) => x
+// eval (eval (def x ...))
 
 }

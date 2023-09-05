@@ -5,7 +5,7 @@ using System.Linq;
 
 using ChessChallenge.API;
 
-using L = System.ArraySegment<object>;
+using L = System.Collections.Generic.IEnumerable<object>;
 using F = System.Func<object, object>;
 using D = System.Collections.Generic.Dictionary<object, object>;
 
@@ -13,147 +13,162 @@ using D = System.Collections.Generic.Dictionary<object, object>;
 
 class Runtime {
 
-    const byte nil_byte = 0xff;
-    const byte pad_byte = 0x00;
-    const byte lpa_byte = 0x01;
-    const byte rpa_byte = 0x02;
+    object env;
 
-    static D E;
+    IEnumerable<byte> tokenize(decimal[] decimals) {
+        var result = decimals.SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes);
 
-    static object cons(object x, object y) {
-        switch (y) {
-            case L l: {
-                var a = new object[l.Count + 1];
-                a[0] = x;
-                l.CopyTo(a, 1);
-                return new L(a);
-            }
-            default: return new L(new[] { x, y });
-        }
+        return result;
     }
 
-    static object h(object x) => ((L)x)[0];
+    object parse(IEnumerable<byte> tokens) {
+        Stack<List<object>> stack = new();
 
-    static object t(object x) {
-        var a = ((L)x);
-        return a.Count switch {
-            0 => throw new ArgumentException("somehow got empty list"),
-            1 => a[0],
-            _ => a.Slice(1),
+        foreach (var token in tokens)
+        {
+            switch (token) {
+                case 0x00: continue;
+                case 0x01: // lpa
+                    stack.Push(new()); 
+                    break;
+                case 0x02: // rpa
+                    var top = stack.Pop();
+                    stack.Peek().Add(top);
+                    break;
+                default:
+                    stack.Peek().Add((int)token);
+                    break;
+            }
+        }
+
+        ast = stack.Peek()[0];
+
+        return ast;
+    }
+
+    object cons(object car, object cdr) {
+        return cdr switch {
+            L l => l.Prepend(car);
+            _ => new object[] { car, cdr };
         };
     }
 
-    static object assoq(object x, D e) => 
-        e.ContainsKey(x) ? e[x] : x;
+    object car(object x) => ((L)x).First();
+    object cdr(object x) => ((L)x).Skip(1);
 
-    static object v(object x, D e) {
-        L: // tail call optimization
-    
-        if (x is string) 
-            return assoq(x, e);
-        else if (x is L) {
-            var f = v(h(x), e);
-            var a = (L)t(x);
+    object nilq(object x) => x switch {
+        L l => !l.Any(),
+        _ => false,
+    };
 
-            if (f is string)
-                switch ((string)f) {
-                    case "v": x = a; goto L;
-                    case "q": return a;
-                    case "d": E[h(a)] = v(t(a), E); return h(a);
-                    case "i": return v(v(a[0], e) != null ? a[1] : a[2], e);
-                }
-            
-            a = (L)a.Select(y => v(y, e));
 
-            if (f is F) return ((F)f)(a);
+    object eval(object x, D e, int d = 0) {
+        TCO:
+        debug(d, "> eval ", x);
 
-            e = new D(e);
-            
-            foreach ((var k, var v) in ((L)h(f)).Zip(a))
-                e[k] = v;
+        if (nilq(x))
+        {
+            debug(d, "> yield 'nilq' ", x);
+            return x;
+        }
 
-            x = h(t(f));
+        if (x is not L)
+        {
+            if (e.ContainsKey(x))
+            {
+                var tmp = e[x];
+                debug(d, "> yield 'env' ", tmp);
+                return tmp;
+            }
+            else
+            {
+                debug(d, "> yield 'id' ", x);
+                return x;
+            }
+        }
+
+        debug(d, "> func ", car(x));
+        var func = eval(car(x), e, d + 1);
+        var args = cdr(x);
+
+        if (func is int)
+        {
+            switch ((int)func)
+            {
+                case 0x05: // eval
+                    debug(d, "> evalf ", car(args));
+                    x = eval(car(args), e, d + 1);
+                    d++;
+                    goto TCO;
                 
-            goto L;
-        } else return x;
-    }
-    
+                case 0x06: // quote
+                    debug(d, "> yield 'quote' ", car(args));
+                    return car(args);
 
-    static void print(object x) {
+                case 0x07: // define
+                    
+                    var res = eval(car(cdr(args)), env, d + 1);
+                
+                case 0x08: // if
+                    debug(d, "> if ", car(args));
+                    var cond_expr = eval(car(args), e, d + 1);
+                    var then_expr = car(cdr(args));
+                    var else_expr = car(cdr(cdr(args)));
+
+                    if ((bool)cond_expr)
+                    {
+                        debug(d, "> then ", then_expr);
+                        x = then_expr;
+                    }
+                    else
+                    {
+                        debug(d, "> else ", else_expr);
+                        x = else_expr;
+                    }
+
+                    d++;
+                    goto TCO;
+
+                default:
+                    throw new ArgumentException($"got int ({func}) but its not a builtin macro!");
+            }
+        }
+
+    }
+
+    void debug(int d, string p, object x = null) {
+        Console.Write(String.Concat(Enumerable.Repeat("  ", )), p);
+        print(x);
+    }
+
+    void print(object x) {
         switch (x) {
-            case null: Console.Write("nil"); break;
             case L a: {
                 Console.Write("(");
-                    
-                switch (a.Count) {
-                    case 1: print(a[0]); break;
-                    case 2: {
-                        print(a[0]);
-                        Console.Write(" ");
-                        print(a[1]);
-                        break;
-                    }
-                    default: {
-                        print(a[0]);
-                        foreach (var obj in (L)t(a)) {
-                            Console.Write(" ");
-                            print(obj);
-                        }
-                        break;
-                    }
+
+                if (!nilq(a))
+                    print(car(a));
+
+                a = (L)cdr(a);
+
+                while (!nilq(a)) {
+                    Console.Write(" ");
+                    print(car(a));
+                    a = (L)cdr(a);
                 }
 
                 Console.Write(")");
                 break;
             }
-            default: Console.Write(x); break;
+
+            case int:
+                Console.Write("0x{0:x2}", x);
+                break;
+
+            default:
+                Console.Write(x);
+                break;
         }
-    }
-
-    void Parse(decimal[] data) {
-        // convert to byte array
-        var code = data.SelectMany(decimal.GetBits)
-            .Where(x => x != 0).SelectMany(BitConverter.ToByteArray);
-
-        Stack<List<object>> stack = new();
-
-        foreach (var token in code) {
-            switch (token) {
-                case pad_byte: continue;
-                case nil_byte: stack.Peek().Add(null); break;
-                case lpa_byte: stack.Push(new List<object>()); break;
-                case rpa_byte: { 
-                    var top = stack.Pop();
-                    stack.Peek().Add(new L(top.ToArray()));
-                    break;
-                }
-                default: stack.Peek().Add(token); break;
-                // TODO: 
-                // special treatment for int literals
-                // maybe eol token
-            }
-        }
-        
-        // requires 1 extra leading lpa to work
-        return stack.Peek()[0];
-    }
-
-    public static void Main() {
-        // var b = Board.CreateBoardFromFEN("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-
-        // var x = cons("d", cons("abc", cons("q", 1)));
-
-
-        E = new D {
-            { "nil", null },
-            { "b", b },
-        };
-
-        // v(x, E);
-
-        print(t(cons("q", 1)));
-
-        Console.WriteLine();
     }
 
 }
