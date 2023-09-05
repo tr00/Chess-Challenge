@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Text.RegularExpressions;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 
 class Compiler {
 
@@ -261,25 +262,26 @@ class Compiler {
         var prog1 = "(define _start (quote ((board timer) (car (gen-moves board)))))";
         var prog2 = @"
         (
-            (define map (quote ((f xs)
+            (define map-eval (quote ((xs)
                 (if (nilq xs) () 
-                    (cons (f (car xs)) (map f (cdr xs)))))))
+                    (cons (eval (car xs)) (map-eval (cdr xs)))))))
 
-        eval (quote (
+        (quote (
             (define _start (quote ((board timer) (car (gen-moves board)))))
+            
         )))
         ";
 
-        // make a big list with all expressions
-        // and then call (map eval ...) over that list
+        var bns = @"
+            (define bns (quote (node alpha beta)
+                (let (count ()))
+            ))
+        ";
 
-
-        // (eval ((define map (quote (f xs) (...))) eval (quote x0 x1 x2 x3 ...)))
+        var prog = File.ReadAllText("bots/bot-v1.lisp");
 
         var ast = compiler.Parse(prog2);
         compiler.Compile(ast);
     }
-// eval (def x ...) => x
-// eval (eval (def x ...))
 
 }

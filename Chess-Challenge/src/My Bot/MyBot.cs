@@ -1,5 +1,5 @@
 ﻿
-// #define VEGETABLES
+#define VEGETABLES
 // #define DEBUGINFO
 
 using ChessChallenge.API;
@@ -56,12 +56,12 @@ public class MyBot : IChessBot
 
         foreach (var token in (new decimal[] {
 
-642024631332551435634147585m,
-5571986344859797580280825857m,
-641996298361729476644244225m,
-2167608827689444598719054338m,
-4953021047589239525709578751m,
-37038168493095256596m,
+311987882577757670939361537m,
+315534545825963473734795528m,
+621397648921269761319506443m,
+1859323317400370987432804866m,
+621477891468154025630957825m,
+2207646876162m,
 
         }).SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes))
             switch (token) {
@@ -81,7 +81,7 @@ public class MyBot : IChessBot
         eval(stack.Peek()[0], env);
     }
 
-    object cons(object car, object cdr) => car switch {
+    object cons(object car, object cdr) => cdr switch {
         L l => l.Prepend(car),
         _ => new object[] { car, cdr },
     };
@@ -195,7 +195,7 @@ public class MyBot : IChessBot
 
 #if VEGETABLES
 
-/*
+// /*
 
     void vegetables()
     {
@@ -206,6 +206,7 @@ public class MyBot : IChessBot
 
     void test_builtins() {
         object res, tmp;
+        object nil = new object[] {};
 
         // identity
         res = eval(0x42, new D());
@@ -225,12 +226,12 @@ public class MyBot : IChessBot
 
         // quote 2
         tmp = new object[] { 0xab };
-        res = eval(cons(0x06, tmp), new D());
+        res = eval(new object[] { 0x06, tmp }, new D());
         assume(res, tmp);
 
         // quote 3
-        tmp = new object[] { 0xfe, 0xdc };
-        res = eval(cons(0x06, tmp), new D());
+        tmp = cons(0xfe, 0xdc);
+        res = eval(new object[] { 0x06, tmp }, new D());
         assume(res, tmp);
 
         // if 1
@@ -261,9 +262,34 @@ public class MyBot : IChessBot
         res = eval(0xfe, new D(env));
         assume(res, 0x33);
 
-        // eval 1
-        res = eval(cons(0x05, cons(0x06, 0xab)), new D{{0xab, 0xcd}}); // (v (q 0xab))[ab:=cd]
+        // eval 1  // (v (q 0xab))[ab:=cd]
+        res = eval(new object[] {0x05, cons(0x06, 0xab)}, new D{{0xab, 0xcd}}); 
         assume(res, 0xcd);
+
+        // primitives
+        res = eval(cons(0xab, 0xcd), new D {{ 0xab, (object x) => car(x) }});
+        assume(res, 0xcd);
+
+        // functions 1  // ((q ((x) x)) 0x66)
+        res = eval(cons(new object[] {0x06, cons(new object[] { 0x77 }, 0x77)}, 0x66), new D());
+        assume(res, 0x66);
+
+        // functions 2  // ((q ((x) (q x))) 0x66)
+        res = eval(cons(cons(0x06, cons(cons(cons(0x77, nil), cons(cons(0x06, 0x77), nil)), nil)), 0x66), new D());
+        assume(res, 0x77);
+
+        // functions 3  // ((q ((x y) y)) 0xcc 0xdd)
+        var args = cons(0x76, cons(0x77, nil));
+        var func = cons(args, cons(0x77, nil));
+        res = eval(cons(cons(0x06, cons(func, nil)), cons(0xcc, cons(0xdd, nil))), new D());
+        assume(res, 0xdd);
+
+        // define + function
+        // (d 0xfe (q ((x) x)))
+        eval(cons(0x07, cons(0xfe, cons(cons(0x06, cons(cons(cons(0x77, nil), 0x77), nil)), nil))), new D());
+        res = eval(cons(0xfe, cons(0xcc, nil)), new D(env));
+        assume(res, 0xcc);
+
 
 
     }
@@ -280,7 +306,7 @@ public class MyBot : IChessBot
             throw new ArgumentException("test failed!");
     }
 
-*/
+// */
 
 #endif
 
