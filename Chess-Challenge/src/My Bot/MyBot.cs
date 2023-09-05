@@ -9,7 +9,7 @@ using System.Numerics;
 using System.Collections.Generic;
 using System.Linq;
 
-using L = System.Collections.Generic.IEnumerable<object>;
+using L = System.Collections.Generic.List<object>;
 using F = System.Func<object, object>;
 using D = System.Collections.Generic.Dictionary<object, object>;
 
@@ -33,8 +33,10 @@ using D = System.Collections.Generic.Dictionary<object, object>;
 public class MyBot : IChessBot
 {
     D env;
+    object nil;
 
     public MyBot() {
+        nil = new L();
 
         /* core library */
         env = new() {
@@ -44,7 +46,7 @@ public class MyBot : IChessBot
             { 0x0d, (object x) => (object)nilq(car(x)) },
             // TODO: eq
 
-            { 0x10, (object x) => (object)((Board)car(x)).GetLegalMoves().Cast<object>() },
+            { 0x10, (object x) => (object)((Board)car(x)).GetLegalMoves().Cast<object>().ToList() },
         };
 
 
@@ -81,14 +83,11 @@ public class MyBot : IChessBot
         eval(stack.Peek()[0], env);
     }
 
-    object cons(object car, object cdr) => cdr switch {
-        L l => l.Prepend(car),
-        _ => new object[] { car, cdr },
-    };
+    object cons(object car, object cdr) => ((L)cdr).Prepend(car).ToList();
 
     object car(object x) => ((L)x).First();
 
-    object cdr(object x) => ((L)x).Skip(1);
+    object cdr(object x) => ((L)x).Skip(1).ToList();
 
     bool nilq(object x) => x switch {
         L l => !l.Any(),
@@ -141,9 +140,18 @@ public class MyBot : IChessBot
 #endif
             }
 
+        // var list = (L)func;
+        // var P = func[^2];
+        // var B = func[^1];
+
+        // if (nilq(car(args))) // macro
+        // {
+        //     args = cdr(args);
+        // }
 
         // TODO: the tolist is optional
         var iter = ((L)args).Select(arg => eval(arg, e)).ToList();
+
 
         if (func is F) 
             return ((F)func)(iter);
@@ -206,14 +214,13 @@ public class MyBot : IChessBot
 
     void test_builtins() {
         object res, tmp;
-        object nil = new object[] {};
 
         // identity
         res = eval(0x42, new D());
         assume(res, 0x42);
 
         // nil handling
-        res = eval(new object[] {}, new D());
+        res = eval(nil, new D());
         assume(nilq(res), true);
 
         // lookup
@@ -221,72 +228,86 @@ public class MyBot : IChessBot
         assume(res, 0xcd);
 
         // quote 1
-        res = eval(cons(0x06, 0x55), new D());
+        res = eval(cons(0x06, cons(0x55, nil)), new D());
         assume(res, 0x55);
 
         // quote 2
-        tmp = new object[] { 0xab };
-        res = eval(new object[] { 0x06, tmp }, new D());
+        tmp = cons(0xab, nil);
+        res = eval(cons(0x06, cons(tmp, nil)), new D());
         assume(res, tmp);
 
         // quote 3
-        tmp = cons(0xfe, 0xdc);
-        res = eval(new object[] { 0x06, tmp }, new D());
+        tmp = cons(0xfe, cons(0xdc, nil));
+        res = eval(cons(0x06, cons(tmp, nil)), new D());
         assume(res, tmp);
 
         // if 1
-        res = eval(new object[] { 0x08, true, 0xab, 0xcd }, new D());
+        tmp = cons(0x08, cons(true, cons(0xab, cons(0xcd, nil))));
+        res = eval(tmp, new D());
         assume(res, 0xab);
-        res = eval(new object[] { 0x08, false, 0xab, 0xcd }, new D());
+        
+        tmp = cons(0x08, cons(false, cons(0xab, cons(0xcd, nil))));
+        res = eval(tmp, new D());
         assume(res, 0xcd);
 
         // if 2
-        res = eval(new object[] { 0x08, true, cons(0x06, 0xab), 0xcd }, new D());
+        tmp = cons(0x08, cons(true, cons(cons(0x06, cons(0xab, nil)), cons(0xcd, nil))));
+        res = eval(tmp, new D());
         assume(res, 0xab);
-        res = eval(new object[] { 0x08, false, 0xab, cons(0x06, 0xcd) }, new D());
+
+        tmp = cons(0x08, cons(false, cons(0xab, cons(cons(0x06, cons(0xcd, nil)), nil))));
+        res = eval(tmp, new D());
         assume(res, 0xcd);
 
         // if 3
-        res = eval(new object[] { 0x08, cons(0x06, true), 0xab, 0xcd }, new D());
+        tmp = cons(0x08, cons(cons(0x06, cons(true, nil)), cons(0xab, cons(0xcd, nil))));
+        res = eval(tmp, new D());
         assume(res, 0xab);
-        res = eval(new object[] { 0x08, cons(0x06, false), 0xab, 0xcd }, new D());
+
+        tmp = cons(0x08, cons(cons(0x06, cons(false, nil)), cons(0xab, cons(0xcd, nil))));
+        res = eval(tmp, new D());
         assume(res, 0xcd);
 
-        // define 1
-        eval(new object[] {0x07, 0xfe, 0x33}, new D());
+        // define 1  // (d 0xfe 0x33) ; (v 0xfe)
+        eval(cons(0x07, cons(0xfe, cons(0x33, nil))), new D());
         res = eval(0xfe, new D(env));
         assume(res, 0x33);
 
-        // define 2
-        eval(new object[] {0x07, 0xfe, cons(0x06, 0x33)}, new D());
+        // define 2 // (d 0xfe (q 0x33)) ; (v 0xfe)
+        eval(cons(0x07, cons(0xfe, cons(cons(0x06, cons(0x33, nil)), nil))), new D());
         res = eval(0xfe, new D(env));
         assume(res, 0x33);
 
         // eval 1  // (v (q 0xab))[ab:=cd]
-        res = eval(new object[] {0x05, cons(0x06, 0xab)}, new D{{0xab, 0xcd}}); 
+        res = eval(cons(0x05, cons(cons(0x06, cons(0xab, nil)), nil)), new D{{0xab, 0xcd}}); 
         assume(res, 0xcd);
 
         // primitives
-        res = eval(cons(0xab, 0xcd), new D {{ 0xab, (object x) => car(x) }});
+        res = eval(cons(0xab, cons(0xcd, nil)), new D {{ 0xab, (object x) => car(x) }});
         assume(res, 0xcd);
 
+        object func;
+
         // functions 1  // ((q ((x) x)) 0x66)
-        res = eval(cons(new object[] {0x06, cons(new object[] { 0x77 }, 0x77)}, 0x66), new D());
+        func = cons(cons(0x77, nil), cons(0x77, nil));
+        res = eval(cons(cons(0x06, cons(func, nil)), cons(0x66, nil)), new D());
         assume(res, 0x66);
 
         // functions 2  // ((q ((x) (q x))) 0x66)
-        res = eval(cons(cons(0x06, cons(cons(cons(0x77, nil), cons(cons(0x06, 0x77), nil)), nil)), 0x66), new D());
+        func = cons(cons(0x77, nil), cons(cons(0x06, cons(0x77, nil)), nil));
+        res = eval(cons(cons(0x06, cons(func, nil)), cons(0x66, nil)), new D());
         assume(res, 0x77);
 
         // functions 3  // ((q ((x y) y)) 0xcc 0xdd)
         var args = cons(0x76, cons(0x77, nil));
-        var func = cons(args, cons(0x77, nil));
+        func = cons(args, cons(0x77, nil));
         res = eval(cons(cons(0x06, cons(func, nil)), cons(0xcc, cons(0xdd, nil))), new D());
         assume(res, 0xdd);
 
         // define + function
         // (d 0xfe (q ((x) x)))
-        eval(cons(0x07, cons(0xfe, cons(cons(0x06, cons(cons(cons(0x77, nil), 0x77), nil)), nil))), new D());
+        func = cons(cons(0x77, nil), cons(0x77, nil));
+        eval(cons(0x07, cons(0xfe, cons(cons(0x06, cons(func, nil)), nil))), new D());
         res = eval(cons(0xfe, cons(0xcc, nil)), new D(env));
         assume(res, 0xcc);
 
