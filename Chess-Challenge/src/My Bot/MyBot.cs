@@ -85,20 +85,20 @@ public class MyBot : IChessBot
 
         var code = new [] {
 
-11183777516587251183221539073m,
-321579027711497934102397186m,
-621392630686569805190865674m,
-683178332756218347778m,
-78929567281552489926681952003m,
-665060335755159325003293185m,
-565157600231938m,
+10533375407187831115407753473m,
+315534400783315349331314177m,
+3096224491402279943108165898m,
+621392630686569659027816740m,
+79228162514264059576166973954m,
+312087734811310982325993471m,
+621397352980996034752676107m,
 
 
-        }.SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes).ToArray();
+        }.SelectMany(decimal.GetBits).Where(x => x != 0).SelectMany(BitConverter.GetBytes).ToArray();
 
         for (int i = 0; i < code.Length; ++i)
             switch (code[i]) {
-                case 0x00: continue;
+                // case 0x00: continue;
                 case 0x01: // lpa
                     stack.Push(new()); 
                     break;

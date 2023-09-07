@@ -185,8 +185,11 @@ class Compiler {
     void EmitSuffix(List<byte> buffer) {
         Console.WriteLine("padding: {0} bytes", 12 - (buffer.Count % 12));
 
+        // padding with leading lpa's reduces tokens
+        // compared to introducing an extra padding byte
         while (buffer.Count % 12 != 0)
-            buffer.Add(pad_byte);
+            buffer.Insert(0, lpa_byte);
+
     }
 
     void EmitExpression(Expr expr, List<byte> buffer) {
@@ -208,8 +211,8 @@ class Compiler {
                 // we have to make sure there is 9 bytes space
                 // before the next decimal flag section
                 // so that our data doesnt get corrupted
-                while (buffer.Count % 12 > 3)
-                    buffer.Add(pad_byte);
+                // while (buffer.Count % 12 > 3)
+                    // buffer.Add(pad_byte);
 
                 buffer.Add(i64_byte);
                 buffer.AddRange(BitConverter.GetBytes(as_number.value));
