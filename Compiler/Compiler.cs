@@ -7,52 +7,16 @@ using System.IO;
 
 class Compiler {
 
-    /**
-     * quick bytecode explanation:
-     *
-     * immaterial tokens:
-     *
-     *  [0x00] = padding
-     *  [0x01] = lpa
-     *  [0x02] = rpa
-     *  [0x03] = <reserved>
-     *  [0x04] = <reserved>
-     *
-     * special forms:
-     *
-     *  [0x05] = eval
-     *  [0x06] = quote
-     *  [0x07] = define
-     *  [0x08] = if
-     *  [0x09] = <reserved>
-     *
-     * core library:
-     *
-     *  [0x0a] = cons
-     *  [0x0b] = car
-     *  [0x0c] = cdr
-     *  [0x0d] = nilq
-     *  [0x0e] = eq
-     *  [0x0f] = <reserved>
-     *
-     * chess api:
-     *
-     *  [0x10] = gen-moves
-     *
-     * the rest are symbol names
-     */
 
-    const byte isa_offset = 0x12;
-
-    const byte nil_byte = 0xff;
     const byte pad_byte = 0x00;
     const byte lpa_byte = 0x01;
     const byte rpa_byte = 0x02;
+    const byte i64_byte = 0x03;
 
     interface Expr {};
 
     record Nil : Expr;
-    record Number(ulong value) : Expr;
+    record Number(long value) : Expr;
     record Symbol(byte id) : Expr;
     record Cons(List<Expr> list) : Expr;
     record Dict(Dictionary<Expr, Expr> dict) : Expr;
@@ -75,7 +39,7 @@ class Compiler {
     public Compiler() {
         space = new Regex(@"\G\s+");
         alpha = new Regex(@"\G[a-zA-Z\-_]+");
-        digit = new Regex(@"\G\d+");
+        digit = new Regex(@"\G\-?\d+");
 
         symbols = new Dictionary<string, byte> {
             // entry point
@@ -86,7 +50,7 @@ class Compiler {
             { "quote",  0x06 },
             { "define", 0x07 },
             { "if",     0x08 },
-            { "<r0>",   0x09 },
+            { "let",    0x09 },
 
             // core library
             { "cons",   0x0a },
@@ -94,10 +58,31 @@ class Compiler {
             { "cdr",    0x0c },
             { "nilq",   0x0d },
             { "eq",     0x0e },
-            { "<r1>",   0x0f },
+            { "<r0f>",  0x0f },
+
+            { "zero",   0x10 },
+            { "one",    0x11 },
+            { "<r12>",  0x12 },
+            { "<r13>",  0x13 },
+
+            // arithmetic
+            { "add",    0x14 },
+            { "sub",    0x15 },
+            { "mul",    0x16 },
+            { "div",    0x17 },
+
+            { "<r18>",  0x18 },
+            { "<r19>",  0x19 },
+            { "<r1a>",  0x1a },
+            { "<r1b>",  0x1b },
+            { "<r1c>",  0x1c },
+            { "<r1d>",  0x1d },
+            { "<r1e>",  0x1e },
+            { "<r1f>",  0x1f },
 
             // chess api
-            { "gen-moves",  0x10 },
+            { "get-moves",  0x20 },
+            { "get-pieces", 0x21 },
         };
 
         nil = new Nil();
@@ -120,20 +105,20 @@ class Compiler {
             return new RParen();
         }
 
-        match = alpha.Match(source, offset);
-
-        if (match.Success) {
-            int start = offset;
-            offset += match.Length;
-            return new Identifier(source.Substring(start, match.Length));
-        }
-
         match = digit.Match(source, offset);
 
         if (match.Success) {
             int start = offset;
             offset += match.Length;
             return new IntLiteral(source.Substring(start, match.Length));
+        }
+
+        match = alpha.Match(source, offset);
+
+        if (match.Success) {
+            int start = offset;
+            offset += match.Length;
+            return new Identifier(source.Substring(start, match.Length));
         }
         
         return null;
@@ -183,7 +168,7 @@ class Compiler {
                 }
 
                 case IntLiteral x:
-                    stack.Peek().list.Add(new Number(UInt64.Parse(x.s)));
+                    stack.Peek().list.Add(new Number(Int64.Parse(x.s)));
                     break;
             }
         }
@@ -206,7 +191,7 @@ class Compiler {
 
     void EmitExpression(Expr expr, List<byte> buffer) {
         switch (expr) {
-            case Nil: buffer.Add(nil_byte); break;
+            // case Nil: buffer.Add(nil_byte); break;
             case Cons as_cons: {
                 buffer.Add(lpa_byte);
                 
@@ -218,6 +203,10 @@ class Compiler {
             }
             case Symbol as_symbol:
                 buffer.Add(as_symbol.id);
+                break;
+            case Number as_number:
+                buffer.Add(i64_byte);
+                buffer.AddRange(BitConverter.GetBytes(as_number.value));
                 break;
         }
     }
@@ -258,29 +247,9 @@ class Compiler {
     static void Main() {
         var compiler = new Compiler();
 
-        var prog0 = "()";
-        var prog1 = "(define _start (quote ((board timer) (car (gen-moves board)))))";
-        var prog2 = @"
-        (
-            (define map-eval (quote ((xs)
-                (if (nilq xs) () 
-                    (cons (eval (car xs)) (map-eval (cdr xs)))))))
+        var prog = File.ReadAllText("bots/bot-v2.lisp");
 
-        (quote (
-            (define _start (quote ((board timer) (car (gen-moves board)))))
-            
-        )))
-        ";
-
-        var bns = @"
-            (define bns (quote (node alpha beta)
-                (let (count ()))
-            ))
-        ";
-
-        var prog = File.ReadAllText("bots/bot-v1.lisp");
-
-        var ast = compiler.Parse(prog2);
+        var ast = compiler.Parse(prog);
         compiler.Compile(ast);
     }
 

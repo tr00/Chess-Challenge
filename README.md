@@ -79,6 +79,7 @@ My Implementation is roughly based on the one described [here](https://codegolf.
 - `(if cond then else)`: First evaluates `cond` and the either evaluates `then` or `else` depending on the evaluation of `cond`.
 
 - `(let name expr cont)`: Binds `name` in the current scope to the evaluation of `expr` and then continues to evaluate `cont`.
+    This builtin was not part of the original tinylisp but I felt like I need it.
 
 
 ### Bytecode

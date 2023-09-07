@@ -1,6 +1,6 @@
 ﻿
-#define VEGETABLES
-// #define DEBUGINFO
+// #define VEGETABLES
+#define DEBUGINFO
 
 using ChessChallenge.API;
 
@@ -35,18 +35,45 @@ public class MyBot : IChessBot
     D env;
     object nil;
 
+    // this type system is pure pain
+    object binop_factory(int id) => 
+        (object x) => binop((long)(((L)x)[0]), (long)(((L)x)[1]), id);
+
+    object binop(long a, long b, int id) => id switch {
+        0x14 => a + b,
+        0x15 => a - b,
+        0x16 => a * b,
+        0x17 => a / b,
+    };
+    
+
     public MyBot() {
         nil = new L();
 
         /* core library */
-        env = new() {
+        env = new D {
             { 0x0a, (object x) => cons(car(x), car(cdr(x))) },
             { 0x0b, (object x) => car(car(x)) },
             { 0x0c, (object x) => cdr(car(x)) },
             { 0x0d, (object x) => (object)nilq(car(x)) },
             // TODO: eq
 
-            { 0x10, (object x) => (object)((Board)car(x)).GetLegalMoves().Cast<object>().ToList() },
+
+            { 0x10, 0L },
+            { 0x11, 1L },
+
+            // { 0x14, (object x) => (object)((long)(((L)x)[0]) + (long)(((L)x)[1])) },
+            // { 0x15, (object x) => (object)((long)(((L)x)[0]) - (long)(((L)x)[1])) },
+            // { 0x16, (object x) => (object)((long)(((L)x)[0]) * (long)(((L)x)[1])) },
+            // { 0x17, (object x) => (object)((long)(((L)x)[0]) / (long)(((L)x)[1])) },
+            { 0x14, binop_factory(0x14) },
+            { 0x15, binop_factory(0x15) },
+            { 0x16, binop_factory(0x16) },
+            { 0x17, binop_factory(0x17) },
+
+            { 0x20, (object x) => (object)((Board)car(x)).GetLegalMoves().Cast<object>().ToList() },
+            { 0x21, (object x) => 
+            (object)((Board)car(x)).GetAllPieceLists().Select(Enumerable.ToList).ToList() },
         };
 
 
@@ -54,19 +81,21 @@ public class MyBot : IChessBot
         vegetables(); // #DEBUG
 #endif
 
-        Stack<List<object>> stack = new();
+        Stack<L> stack = new();
 
-        foreach (var token in (new decimal[] {
+        var code = new [] {
 
-311987882577757670939361537m,
-315534545825963473734795528m,
-621397648921269761319506443m,
-1859323317400370987432804866m,
-621477891468154025630957825m,
-2207646876162m,
+11183777516587251183221539073m,
+321579027711497934102397186m,
+621392630686569805190865674m,
+350597914623266155210604802m,
+311912345762167539214984741m,
+131586m,
 
-        }).SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes))
-            switch (token) {
+        }.SelectMany(decimal.GetBits).SelectMany(BitConverter.GetBytes).ToArray();
+
+        for (int i = 0; i < code.Length; ++i)
+            switch (code[i]) {
                 case 0x00: continue;
                 case 0x01: // lpa
                     stack.Push(new()); 
@@ -75,8 +104,12 @@ public class MyBot : IChessBot
                     var top = stack.Pop();
                     stack.Peek().Add(top);
                     break;
+                case 0x03: // i64
+                    stack.Peek().Add(BitConverter.ToInt64(code, i + 1));
+                    i += 8;
+                    break;
                 default:
-                    stack.Peek().Add((int)token);
+                    stack.Peek().Add((int)code[i]);
                     break;
             }
 
@@ -109,54 +142,59 @@ public class MyBot : IChessBot
 #endif
 
         if (x is not L)
-            return e.ContainsKey(x) ? e[x] : x;
+            return e.ContainsKey(x) ? e[x] : env.ContainsKey(x) ? env[x] : x;
 
         if (nilq(x))
             return x;
 
 
         var func = eval(car(x), e);
-        var args = cdr(x);
+        var args = (L)cdr(x);
+
+        var args0 = args[0];
 
         if (func is int)
             switch ((int)func) {
                 case 0x05: // eval
-                    x = eval(car(args), e);
+                    x = eval(args0, e);
                     goto TCO;
 
                 case 0x06: // quote
-                    return car(args);
+                    return args0;
 
-                case 0x07: // define
-                    var tmp = eval(car(cdr(args)), env);
-                    env[car(args)] = tmp;
-                    return tmp;
+                // case 0x07: // define
+                //     var tmp = eval(args[1], env);
+                //     env[args0] = tmp;
+                //     return tmp;
 
                 case 0x08: // if
-                    x = (bool)eval(car(args), e) ? car(cdr(args)) : car(cdr(cdr(args)));
+                    x = (bool)eval(args0, e) ? args[1] : args[2];
+                    goto TCO;
+
+                case 0x09: // let
+                    e[args0] = eval(args[1], e);
+                    x = args[2];
                     goto TCO;
 #if DEBUGINFO
-                default: throw new ArgumentException($"unrecognized symbol: {func}"); // #DEBUG
+                default:  // #DEBUG
+                    foreach(var pair in env) // #DEBUG
+                        Console.WriteLine("key: {0}", pair.Key); // #DEBUG
+                    throw new ArgumentException($"unrecognized symbol: {func}"); // #DEBUG
 #endif
             }
 
-        // var list = (L)func;
-        // var P = func[^2];
-        // var B = func[^1];
-
-        // if (nilq(car(args))) // macro
-        // {
-        //     args = cdr(args);
-        // }
-
-        // TODO: the tolist is optional
-        var iter = ((L)args).Select(arg => eval(arg, e)).ToList();
-
+        // this is a lazy iterator
+        // for macros its never realized
+        var iter = args.Select(arg => eval(arg, e));
 
         if (func is F) 
-            return ((F)func)(iter);
+            return ((F)func)(iter.ToList());
 
-        e = new(e);
+        var list = (L)func;
+
+        if (!nilq(car(func)))
+            args = iter.ToList();
+
 
 #if DEBUGINFO
         Console.Write("lambda: ");      // #DEBUG
@@ -164,18 +202,21 @@ public class MyBot : IChessBot
         Console.WriteLine();            // #DEBUG
 #endif
 
-        foreach ((var k, var v) in ((L)car(func)).Zip(iter))
-            e[k] = v;
+        // e = ((L)list[^2]).Zip(args).ToDictionary(pair => pair.First, pair => pair.Second);
+        x = list[^1];
 
-        x = car(cdr(func));
+        e = new(e);
+        foreach ((var k, var v) in ((L)list[^2]).Zip(args))
+            e[k] = v;
+        // x = car(cdr(func));
 
         goto TCO;
     }
 
     public Move Think(Board board, Timer timer) {
         Console.WriteLine("thinking..."); // #DEBUG
-
-        return (Move)eval(new object[] { 0xff, board, timer }, env);
+        return (Move)eval(new L{0xff, board, timer}, env);
+        // return (Move)eval(cons(0xff, cons(board, cons(timer, nil))), env);
     }
 
     // debugging:
@@ -203,7 +244,7 @@ public class MyBot : IChessBot
 
 #if VEGETABLES
 
-// /*
+/*
 
     void vegetables()
     {
@@ -311,6 +352,13 @@ public class MyBot : IChessBot
         res = eval(cons(0xfe, cons(0xcc, nil)), new D(env));
         assume(res, 0xcc);
 
+        // let 1
+        res = eval(cons(0x09, cons(0xab, cons(0xcd, cons(0xab, nil)))), new D());
+        assume(res, 0xcd);
+
+        // let 2
+        res = eval(cons(0x09, cons(0xab, cons(cons(0x06, cons(0xcd, nil)), cons(0xab, nil)))), new D());
+        assume(res, 0xcd);
 
 
     }
@@ -327,7 +375,7 @@ public class MyBot : IChessBot
             throw new ArgumentException("test failed!");
     }
 
-// */
+*/
 
 #endif
 
