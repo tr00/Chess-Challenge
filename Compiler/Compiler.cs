@@ -205,6 +205,12 @@ class Compiler {
                 buffer.Add(as_symbol.id);
                 break;
             case Number as_number:
+                // we have to make sure there is 9 bytes space
+                // before the next decimal flag section
+                // so that our data doesnt get corrupted
+                while (buffer.Count % 12 > 3)
+                    buffer.Add(pad_byte);
+
                 buffer.Add(i64_byte);
                 buffer.AddRange(BitConverter.GetBytes(as_number.value));
                 break;
