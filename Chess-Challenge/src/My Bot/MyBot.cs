@@ -37,7 +37,10 @@ public class MyBot : IChessBot
 
     // this type system is pure pain
     object binop_factory(int id) => 
-        (object x) => binop((long)(((L)x)[0]), (long)(((L)x)[1]), id);
+        (object x) => { 
+            var l = (L)x;
+            return binop((long)(((L)x)[0]), (long)(((L)x)[1]), id);
+        };
 
     object binop(long a, long b, int id) => id switch {
         0x14 => a + b,
@@ -69,11 +72,16 @@ public class MyBot : IChessBot
             { 0x14, binop_factory(0x14) },
             { 0x15, binop_factory(0x15) },
             { 0x16, binop_factory(0x16) },
-            { 0x17, binop_factory(0x17) },
+            // { 0x17, binop_factory(0x17) },
 
             { 0x20, (object x) => (object)((Board)car(x)).GetLegalMoves().Cast<object>().ToList() },
-            { 0x21, (object x) => 
-            (object)((Board)car(x)).GetAllPieceLists().Select(Enumerable.ToList).ToList() },
+            { 0x21, (object x) => {
+                var board = (Board)car(x);
+                var pieces = board.GetAllPieceLists();
+                return pieces.Select((PieceList x) => (object)x.Cast<object>().ToList()).ToList();
+            } },
+                // (object)((Board)car(x)).GetAllPieceLists().Select(Enumerable.ToList).ToList() },
+            { 0x22, (object x) => (object)((Board)car(x)).IsWhiteToMove },
         };
 
 
@@ -85,13 +93,35 @@ public class MyBot : IChessBot
 
         var code = new [] {
 
-10533375407187831115407753473m,
-315534400783315349331314177m,
-3096224491402279943108165898m,
-621392630686569659027816740m,
-78181191172390306003216826882m,
-312087734811310982325928710m,
-621397352980996034752676107m,
+310722290811151159421632769m,
+1864168520753147871783813378m,
+621393276898830033439293698m,
+2786583495982853380571791618m,
+4024551851031407363577020710m,
+12115859326395243453303226921m,
+13009255504277675912408596776m,
+12691308163886773106995438337m,
+2477099205521758442924081666m,
+3715232125111872688772156673m,
+316744099411056985603441193m,
+66188702846844079088604609027m,
+48887986559787195198206768945m,
+936901534686478356736837372m,
+47890401641157051900252068355m,
+30340175969899163026399819569m,
+78291260979577858996406384899m,
+13174892415782477060022872067m,
+30340175930700106687657937102m,
+78291260979577924005031377155m,
+312125661317407102197629442m,
+13309168260088270747528397064m,
+13928043852796400861163948801m,
+621397353065730992960834561m,
+13928138278447418639484193025m,
+678367964287713223975706881m,
+78929562596224175614792630545m,
+678358519770920293354251009m,
+621397353053053628184592898m,
 
         }.SelectMany(decimal.GetBits).Where(x => x != 0).SelectMany(BitConverter.GetBytes).ToArray();
 
@@ -157,7 +187,7 @@ public class MyBot : IChessBot
         var args0 = args[0];
 
         if (func is int)
-            switch ((int)func) {
+            switch (func) {
                 case 0x05: // eval
                     x = eval(args0, e);
                     goto TCO;
@@ -218,8 +248,8 @@ public class MyBot : IChessBot
 
     public Move Think(Board board, Timer timer) {
         Console.WriteLine("thinking..."); // #DEBUG
+        // Console.WriteLine("material-heuristic: {0}", eval(new L{0x30, board}, env)); // #DEBUG
         return (Move)eval(new L{0xff, board, timer}, env);
-        // return (Move)eval(cons(0xff, cons(board, cons(timer, nil))), env);
     }
 
     // debugging:

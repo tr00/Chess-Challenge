@@ -82,8 +82,9 @@ class Compiler {
             { "<r1f>",  0x1f },
 
             // chess api
-            { "get-moves",  0x20 },
-            { "get-pieces", 0x21 },
+            { "get-moves",      0x20 },
+            { "get-pieces",     0x21 },
+            { "side-to-move",   0x22 },
         };
 
         nil = new Nil();
@@ -192,8 +193,8 @@ class Compiler {
     }
 
     void EmitSuffix(List<byte> buffer) {
-        Console.WriteLine("literal key: 0x{0:x}", KEY);
-        Console.WriteLine("leading lpa: {0} bytes", 13 - (buffer.Count % 12));
+        Console.WriteLine("xor-key: 0x{0:x}", KEY);
+        Console.WriteLine("padding: {0} bytes", 13 - (buffer.Count % 12));
 
         // padding with leading lpa's reduces tokens
         // compared to introducing an extra padding byte
@@ -266,7 +267,7 @@ class Compiler {
     static void Main() {
         var compiler = new Compiler();
 
-        var prog = File.ReadAllText("bots/bot-v2.lisp");
+        var prog = File.ReadAllText("bots/bot-v3.lisp");
 
         var ast = compiler.Parse(prog);
         compiler.Compile(ast);
