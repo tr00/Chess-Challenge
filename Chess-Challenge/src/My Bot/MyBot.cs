@@ -89,10 +89,9 @@ public class MyBot : IChessBot
 315534400783315349331314177m,
 3096224491402279943108165898m,
 621392630686569659027816740m,
-79228162514264059576166973954m,
-312087734811310982325993471m,
+78181191172390306003216826882m,
+312087734811310982325928710m,
 621397352980996034752676107m,
-
 
         }.SelectMany(decimal.GetBits).Where(x => x != 0).SelectMany(BitConverter.GetBytes).ToArray();
 
@@ -107,7 +106,7 @@ public class MyBot : IChessBot
                     stack.Peek().Add(top);
                     break;
                 case 0x03: // i64
-                    stack.Peek().Add(BitConverter.ToInt64(code, i + 1));
+                    stack.Peek().Add(BitConverter.ToInt64(code, i + 1) ^ 0x306fc9df731d49e);
                     i += 8;
                     break;
                 default:
@@ -117,6 +116,8 @@ public class MyBot : IChessBot
 
         eval(stack.Peek()[0], env);
     }
+
+    // L as_list(object x) => (L)x;
 
     object cons(object car, object cdr) => ((L)cdr).Prepend(car).ToList();
 
@@ -144,7 +145,7 @@ public class MyBot : IChessBot
 #endif
 
         if (x is not L)
-            return e.ContainsKey(x) ? e[x] : env.ContainsKey(x) ? env[x] : x;
+            return e.ContainsKey(x) ? e[x] : x;
 
         if (nilq(x))
             return x;

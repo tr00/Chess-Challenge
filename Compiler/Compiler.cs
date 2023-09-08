@@ -7,6 +7,7 @@ using System.IO;
 
 class Compiler {
 
+    const long KEY = 0x306fc9df731d49e;
 
     const byte pad_byte = 0x00;
     const byte lpa_byte = 0x01;
@@ -168,7 +169,15 @@ class Compiler {
                 }
 
                 case IntLiteral x:
-                    stack.Peek().list.Add(new Number(Int64.Parse(x.s)));
+                    long value = Int64.Parse(x.s) ^ KEY;
+                    if ((value & (0xffffffff << 0)) == 0 ||
+                        (value & (0xffffffff << 1)) == 0 ||
+                        (value & (0xffffffff << 2)) == 0 ||
+                        (value & (0xffffffff << 3)) == 0 ||
+                        (value & (0xffffffff << 4)) == 0)
+                        Console.WriteLine("WARNING: Unsafe key was used! Data could corrupt!");
+
+                    stack.Peek().list.Add(new Number(Int64.Parse(x.s) ^ KEY));
                     break;
             }
         }
@@ -183,7 +192,8 @@ class Compiler {
     }
 
     void EmitSuffix(List<byte> buffer) {
-        Console.WriteLine("padding: {0} bytes", 12 - (buffer.Count % 12));
+        Console.WriteLine("literal key: 0x{0:x}", KEY);
+        Console.WriteLine("leading lpa: {0} bytes", 13 - (buffer.Count % 12));
 
         // padding with leading lpa's reduces tokens
         // compared to introducing an extra padding byte
