@@ -1,6 +1,6 @@
 ﻿
 // #define VEGETABLES
-#define DEBUGINFO
+// #define DEBUGINFO
 
 using ChessChallenge.API;
 
@@ -46,7 +46,11 @@ public class MyBot : IChessBot
         0x14 => a + b,
         0x15 => a - b,
         0x16 => a * b,
-        0x17 => a / b,
+        // 0x17 => a / b,
+        0x18 => a == b,
+        0x19 => a >= b,
+        0x1a => a < b,
+
     };
     
 
@@ -59,7 +63,7 @@ public class MyBot : IChessBot
             { 0x0b, (object x) => car(car(x)) },
             { 0x0c, (object x) => cdr(car(x)) },
             { 0x0d, (object x) => (object)nilq(car(x)) },
-            // TODO: eq
+            { 0x0e, (object x) => { print(car(x));Console.WriteLine(); return car(x); }},
 
 
             { 0x10, 0L },
@@ -73,15 +77,28 @@ public class MyBot : IChessBot
             { 0x15, binop_factory(0x15) },
             { 0x16, binop_factory(0x16) },
             // { 0x17, binop_factory(0x17) },
+            { 0x18, binop_factory(0x18) },
+            { 0x19, binop_factory(0x19) },
+            { 0x1a, binop_factory(0x1a) },
 
             { 0x20, (object x) => (object)((Board)car(x)).GetLegalMoves().Cast<object>().ToList() },
             { 0x21, (object x) => {
                 var board = (Board)car(x);
-                var pieces = board.GetAllPieceLists();
-                return pieces.Select((PieceList x) => (object)x.Cast<object>().ToList()).ToList();
-            } },
-                // (object)((Board)car(x)).GetAllPieceLists().Select(Enumerable.ToList).ToList() },
+                return board.GetAllPieceLists()
+                    .Select((PieceList x) => (object)x.Cast<object>().ToList()).ToList(); } },
             { 0x22, (object x) => (object)((Board)car(x)).IsWhiteToMove },
+            { 0x23, (object x) => {
+                var board = (Board)cxr(x, 0);
+                var move  = (Move)cxr(x, 1);
+                board.MakeMove(move);
+                return (object)board;
+            }}, 
+            { 0x24, (object x) => {
+                var board = (Board)cxr(x, 0);
+                var move  = (Move)cxr(x, 1);
+                board.UndoMove(move);
+                return (object)board;
+            }}, 
         };
 
 
@@ -93,35 +110,61 @@ public class MyBot : IChessBot
 
         var code = new [] {
 
-310722290811151159421632769m,
-1864168520753147871783813378m,
-621393276898830033439293698m,
-2786583495982853380571791618m,
-4024551851031407363577020710m,
-12115859326395243453303226921m,
-13009255504277675912408596776m,
-12691308163886773106995438337m,
-2477099205521758442924081666m,
-3715232125111872688772156673m,
-316744099411056985603441193m,
-66188702846844079088604609027m,
-48887986559787195198206768945m,
-936901534686478356736837372m,
-47890401641157051900252068355m,
-30340175969899163026399819569m,
-78291260979577858996406384899m,
-13174892415782477060022872067m,
-30340175930700106687657937102m,
-78291260979577924005031377155m,
-312125661317407102197629442m,
-13309168260088270747528397064m,
-13928043852796400861163948801m,
-621397353065730992960834561m,
-13928138278447418639484193025m,
-678367964287713223975706881m,
-78929562596224175614792630545m,
-678358519770920293354251009m,
-621397353053053628184592898m,
+620183778591734146619474177m,
+626251927926882121323849217m,
+621397337274691388933474817m,
+12390285484634985770009100801m,
+13323576327985931597826303233m,
+13048125284362982253807086082m,
+362720265774158998607170561m,
+670963293797665053235282213m,
+319161178737031824775119106m,
+13322368084700044355275205389m,
+929692311246474835600212482m,
+15423315101741393051454133498m,
+78181191172478126049887821303m,
+932114801083904262255346438m,
+15351837362656678101499631386m,
+1046971341846453811746217463m,
+1234280267665511217879055609m,
+63805376446696234458320611880m,
+1046971341693332497923006984m,
+924795257844166403094215929m,
+2477099356472887205842977026m,
+363891799976544134681857281m,
+366309282761123217891536907m,
+311912343231760279439290380m,
+366309651610761755191489033m,
+5263904486556330787426415393m,
+372391672331076032254711041m,
+4024551851035646046200070437m,
+2786584437415099613826122293m,
+312172979656407798093513018m,
+17356552755362838850072678421m,
+312163663330018559061525009m,
+312172979728411516715270411m,
+312172979728457695313920514m,
+16782318746432833779046429964m,
+18270500671240542080078460674m,
+7428886959070441802135840001m,
+9904971040096651847019925560m,
+382063078887993298220614195m,
+319161180049569660156444965m,
+312153349886462797709194509m,
+688120277776058718395382281m,
+6500404574083840380144456961m,
+685735298220413526206452024m,
+688120296209010711335078657m,
+688120296223084206633386497m,
+17952823316531217384512752641m,
+17643338306709872316694069814m,
+384480930527222323749192253m,
+680776374309059031297360165m,
+13423928885127215564201434115m,
+311912343174985815462906062m,
+990403051594967477414657801m,
+620188427306898040695149725m,
+621397353053053628184658434m,
 
         }.SelectMany(decimal.GetBits).Where(x => x != 0).SelectMany(BitConverter.GetBytes).ToArray();
 
@@ -150,6 +193,8 @@ public class MyBot : IChessBot
     // L as_list(object x) => (L)x;
 
     object cons(object car, object cdr) => ((L)cdr).Prepend(car).ToList();
+
+    object cxr(object x, int i) => ((L)x)[i];
 
     object car(object x) => ((L)x).First();
 
@@ -249,7 +294,9 @@ public class MyBot : IChessBot
     public Move Think(Board board, Timer timer) {
         Console.WriteLine("thinking..."); // #DEBUG
         // Console.WriteLine("material-heuristic: {0}", eval(new L{0x30, board}, env)); // #DEBUG
-        return (Move)eval(new L{0xff, board, timer}, env);
+        var res = eval(new L{0xff, board, timer}, env);
+        // print(res);
+        return (Move)res;
     }
 
     // debugging:

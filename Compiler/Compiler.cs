@@ -58,7 +58,7 @@ class Compiler {
             { "car",    0x0b },
             { "cdr",    0x0c },
             { "nilq",   0x0d },
-            { "eq",     0x0e },
+            { "print",  0x0e },
             { "<r0f>",  0x0f },
 
             { "zero",   0x10 },
@@ -72,9 +72,9 @@ class Compiler {
             { "mul",    0x16 },
             { "div",    0x17 },
 
-            { "<r18>",  0x18 },
-            { "<r19>",  0x19 },
-            { "<r1a>",  0x1a },
+            { "eq",     0x18 },
+            { "ge",     0x19 },
+            { "lt",     0x1a },
             { "<r1b>",  0x1b },
             { "<r1c>",  0x1c },
             { "<r1d>",  0x1d },
@@ -85,6 +85,8 @@ class Compiler {
             { "get-moves",      0x20 },
             { "get-pieces",     0x21 },
             { "side-to-move",   0x22 },
+            { "make-move",      0x23 },
+            { "undo-move",      0x24 },
         };
 
         nil = new Nil();
@@ -267,7 +269,7 @@ class Compiler {
     static void Main() {
         var compiler = new Compiler();
 
-        var prog = File.ReadAllText("bots/bot-v3.lisp");
+        var prog = File.ReadAllText("bots/bot-v4.lisp");
 
         var ast = compiler.Parse(prog);
         compiler.Compile(ast);
