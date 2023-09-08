@@ -180,7 +180,7 @@ class Compiler {
                         (value & (0xffffffff << 4)) == 0)
                         Console.WriteLine("WARNING: Unsafe key was used! Data could corrupt!");
 
-                    stack.Peek().list.Add(new Number(Int64.Parse(x.s) ^ KEY));
+                    stack.Peek().list.Add(new Number(value));
                     break;
             }
         }
